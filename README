@@ -1,0 +1,58 @@
+2013-02-01
+bwusage: a program to print the the current input and output
+bandwidth utilization on a given network interface on a Linux host.
+
+Author: Shumon Huque, <shuque -@- upenn.edu>
+
+Pre-requisites:
+
+        Linux 
+        Python 2.5 or above
+
+Installation:
+
+        Copy the program to wherever you need it.
+
+Usage:
+
+bwusage (a network bandwidth usage reporter for Linux), version 0.1
+
+Usage: bwusage [-i interval] [-c #samples] [-h lines] [-b] [-k] [-m] [-g] [-u] <interface_name>
+
+Options:
+         -i interval                 interval in seconds
+         -c samples                  count of number of samples
+         -h NN                       print header every NN lines
+         -b                          use bits per second unit
+         -k                          use kilobits per second unit
+         -m                          use megabits per second unit
+         -g                          use gigabits per second unit
+         -u                          print timestamp in unixtime format
+
+
+Example usage/output:
+
+$ bwusage -i 5 -m eth0
+Computing throughput at 5 second intervals for interface eth0 ...
+Type Control-C to interrupt
+
+Timestamp                           Input                  Output
+2013-02-02-17:06:43            29.34 Mbps               0.69 Mbps
+2013-02-02-17:06:48            94.13 Mbps               2.21 Mbps
+2013-02-02-17:06:54            94.12 Mbps               2.21 Mbps
+2013-02-02-17:06:59            94.13 Mbps               2.21 Mbps
+2013-02-02-17:07:04            94.12 Mbps               2.21 Mbps
+2013-02-02-17:07:09            94.13 Mbps               2.21 Mbps
+2013-02-02-17:07:14            94.12 Mbps               2.21 Mbps
+2013-02-02-17:07:19            94.13 Mbps               2.21 Mbps
+2013-02-02-17:07:24            94.12 Mbps               2.21 Mbps
+2013-02-02-17:07:29            94.13 Mbps               2.21 Mbps
+2013-02-02-17:07:34            94.12 Mbps               2.21 Mbps
+2013-02-02-17:07:39            94.13 Mbps               2.21 Mbps
+2013-02-02-17:07:44            65.43 Mbps               1.54 Mbps
+2013-02-02-17:07:49             0.00 Mbps               0.00 Mbps
+2013-02-02-17:07:54             0.00 Mbps               0.00 Mbps
+^CProgram terminated.
+>> Statistics:
+        Input min 0.00 Mbps, max 94.13 Mbps, avg 75.34 Mbps
+        Output min 0.00 Mbps, max 2.21 Mbps, avg 1.77 Mbps

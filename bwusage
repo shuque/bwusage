@@ -1,0 +1,180 @@
+#!/usr/bin/env python
+#
+# Usage: bwusage [options] [interface] [instance]
+#
+# Author: Shumon Huque <shuque@upenn.edu>
+#
+
+import os, sys, getopt, time
+
+PROGNAME       = os.path.basename(sys.argv[0])
+PROGDESC       = "a network bandwidth usage reporter for Linux"
+VERSION        = "0.1"
+
+FMT_RXBYTES = "/sys/class/net/%s/statistics/rx_bytes"
+FMT_TXBYTES = "/sys/class/net/%s/statistics/tx_bytes"
+
+# Default parameters
+INTERVAL = 5                        # seconds
+NUMSAMPLES = None
+unit_desc = "Mbps"
+unit_divisor = 1048576.0
+UNIX_TIME  = False
+HEADER_LINE = 20                    # repeat header after how many lines
+
+USAGE_STRING = """\
+%s (%s), version %s
+
+Usage: %s [-i interval] [-c #samples] [-h lines] [-b] [-k] [-m] [-g] [-u] <interface_name>
+
+Options:
+         -i interval                 interval in seconds
+         -c samples                  count of number of samples
+         -h NN                       print header every NN lines
+         -b                          use bits per second unit
+         -k                          use kilobits per second unit
+         -m                          use megabits per second unit
+         -g                          use gigabits per second unit
+         -u                          print timestamp in unixtime format
+         
+""" \
+% (PROGNAME, PROGDESC, VERSION, PROGNAME)
+
+def usage(error):
+    print >>sys.stderr, "Usage error: %s\n" % error
+    print >>sys.stderr, USAGE_STRING,
+    sys.exit(1)
+
+
+class AggregateStats:
+    def __init__(self, unit):
+        self.initialized = False
+        self.samples = 0
+        self.unit = unit
+        self.input = dict(min=None, max=None, sum=0)
+        self.output = dict(min=None, max=None, sum=0)
+        return
+
+    def update(self, input_rate, output_rate):
+        self.samples += 1
+        self.input["sum"] += input_rate
+        self.output["sum"] += output_rate
+        if not self.initialized:
+            self.input["min"] = input_rate
+            self.input["max"] = input_rate
+            self.output["min"] = output_rate
+            self.output["max"] = output_rate
+            self.initialized = True
+        else:
+            if input_rate > self.input["max"]:
+                self.input["max"] = input_rate
+            elif input_rate < self.input["min"]:
+                self.input["min"] = input_rate
+            if output_rate > self.output["max"]:
+                self.output["max"] = output_rate
+            elif output_rate < self.output["min"]:
+                self.output["min"] = output_rate
+        return
+
+    def display(self):
+        if self.samples == 0:
+            return
+        print ">> Statistics:"
+        print "\tInput min %.2f %s, max %.2f %s, avg %.2f %s" % \
+              (self.input["min"], self.unit, self.input["max"], self.unit,
+               self.input["sum"]/(self.samples * 1.0), self.unit)
+        print "\tOutput min %.2f %s, max %.2f %s, avg %.2f %s" % \
+              (self.output["min"], self.unit, self.output["max"], self.unit,
+               self.output["sum"]/(self.samples * 1.0), self.unit)
+        return
+    
+
+if sys.platform != "linux2":
+    usage("This program only supports Linux")
+    
+try:
+    (options, args) = getopt.getopt(sys.argv[1:], 'i:c:h:bkmgu')
+except getopt.GetoptError, diag:
+    usage(diag)
+
+try:
+    if_name, = args
+except Exception, diag:
+    usage("couldn't parse interface name: %s" % diag)
+    
+for option in options:
+    optname, optval = option
+    if optname == "-i":
+        INTERVAL = int(optval)
+    if optname == "-c":
+        NUMSAMPLES = int(optval)
+    if optname == "-h":
+        HEADER_LINE = int(optval)
+    elif optname == "-b":
+        unit_desc = "bps"
+        unit_divisor = 1.0
+    elif optname == "-k":
+        unit_desc = "Kbps"
+        unit_divisor = 1024.0
+    elif optname == "-m":
+        unit_desc = "Mbps"
+        unit_divisor = 1048576.0
+        continue
+    elif optname == "-g":
+        unit_desc = "Gbps"
+        unit_divisor = 1073741824.0
+    elif optname == "-u":
+        UNIX_TIME = True
+
+
+def get_stat(fmt, if_name):
+    """return contents of network interface tx/rx stats file"""
+    statfile = fmt % if_name
+    return long(open(statfile).readline().rstrip('\n'))
+
+
+firstTime = True
+
+print "Computing throughput at %d second intervals for interface %s ..." \
+      % (INTERVAL, if_name)
+print "Type Control-C to interrupt"
+
+linecount = 0
+astats = AggregateStats(unit_desc)
+
+try:
+    while True:
+        if (NUMSAMPLES != None) and (linecount >= NUMSAMPLES):
+            break
+        timestamp = time.time()
+        ibytes = get_stat(FMT_RXBYTES, if_name)
+        obytes = get_stat(FMT_TXBYTES, if_name)
+        if firstTime:
+            firstTime = False
+            last_ibytes = ibytes
+            last_obytes = obytes
+            time.sleep(INTERVAL)
+            continue
+        irate = (ibytes - last_ibytes) * 8.0 / INTERVAL / unit_divisor
+        orate = (obytes - last_obytes) * 8.0 / INTERVAL / unit_divisor
+        astats.update(irate, orate)
+        if linecount % HEADER_LINE == 0:
+            print "\n%-19s\t%17s\t%17s" % ("Timestamp", "Input", "Output")
+        linecount += 1
+        if not UNIX_TIME:
+            timestamp1 = time.strftime( "%Y-%m-%d-%H:%M:%S",
+                                       time.localtime(timestamp))
+        else:
+            timestamp1 = str(long(timestamp))
+        print "%-19s\t%12.2f %4s\t%12.2f %4s" % \
+              (timestamp1, irate, unit_desc, orate, unit_desc)
+        last_ibytes = ibytes
+        last_obytes = obytes
+        if (NUMSAMPLES != None) and (linecount == NUMSAMPLES):
+            break
+        time.sleep(INTERVAL)
+except (SystemExit, KeyboardInterrupt):
+    print "Program terminated."
+finally:
+    astats.display()                            # summary statistics
+    os._exit(0)
