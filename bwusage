@@ -2,7 +2,7 @@
 #
 # Usage: bwusage [options] [interface] [instance]
 #
-# Author: Shumon Huque <shuque@upenn.edu>
+# Author: Shumon Huque <shuque@gmail.com>
 #
 
 import os, sys, getopt, time
@@ -41,8 +41,7 @@ Options:
 % (PROGNAME, PROGDESC, VERSION, PROGNAME)
 
 def usage(error):
-    print >>sys.stderr, "Usage error: %s\n" % error
-    print >>sys.stderr, USAGE_STRING,
+    sys.stderr.write("Usage error: %s\n\n%s" % (error, USAGE_STRING))
     sys.exit(1)
 
 
@@ -79,29 +78,29 @@ class AggregateStats:
     def display(self):
         if self.samples == 0:
             return
-        print ">> Statistics:"
-        print "\tInput min %.2f %s, max %.2f %s, avg %.2f %s" % \
+        print(">> Statistics:")
+        print("\tInput min %.2f %s, max %.2f %s, avg %.2f %s" % \
               (self.input["min"], self.unit, self.input["max"], self.unit,
-               self.input["sum"]/(self.samples * 1.0), self.unit)
-        print "\tOutput min %.2f %s, max %.2f %s, avg %.2f %s" % \
+               self.input["sum"]/(self.samples * 1.0), self.unit))
+        print("\tOutput min %.2f %s, max %.2f %s, avg %.2f %s" % \
               (self.output["min"], self.unit, self.output["max"], self.unit,
-               self.output["sum"]/(self.samples * 1.0), self.unit)
+               self.output["sum"]/(self.samples * 1.0), self.unit))
         return
     
 
-if sys.platform != "linux2":
+if sys.platform not in  ["linux2", "linux"]:
     usage("This program only supports Linux")
     
 try:
     (options, args) = getopt.getopt(sys.argv[1:], 'i:c:h:bkmgu')
-except getopt.GetoptError, diag:
-    usage(diag)
+except getopt.GetoptError as e:
+    usage(e)
 
 try:
     if_name, = args
-except Exception, diag:
-    usage("couldn't parse interface name: %s" % diag)
-    
+except Exception as e:
+    usage("couldn't parse interface name: %s" % e)
+
 for option in options:
     optname, optval = option
     if optname == "-i":
@@ -130,14 +129,14 @@ for option in options:
 def get_stat(fmt, if_name):
     """return contents of network interface tx/rx stats file"""
     statfile = fmt % if_name
-    return long(open(statfile).readline().rstrip('\n'))
+    return int(open(statfile).readline().rstrip('\n'))
 
 
 firstTime = True
 
-print "Computing throughput at %d second intervals for interface %s ..." \
-      % (INTERVAL, if_name)
-print "Type Control-C to interrupt"
+print("Computing throughput at %d second intervals for interface %s ..." \
+      % (INTERVAL, if_name))
+print("Type Control-C to interrupt")
 
 linecount = 0
 astats = AggregateStats(unit_desc)
@@ -159,22 +158,23 @@ try:
         orate = (obytes - last_obytes) * 8.0 / INTERVAL / unit_divisor
         astats.update(irate, orate)
         if linecount % HEADER_LINE == 0:
-            print "\n%-19s\t%17s\t%17s" % ("Timestamp", "Input", "Output")
+            print("\n%-19s\t%17s\t%17s" % ("Timestamp", "Input", "Output"))
         linecount += 1
         if not UNIX_TIME:
             timestamp1 = time.strftime( "%Y-%m-%d-%H:%M:%S",
                                        time.localtime(timestamp))
         else:
             timestamp1 = str(long(timestamp))
-        print "%-19s\t%12.2f %4s\t%12.2f %4s" % \
-              (timestamp1, irate, unit_desc, orate, unit_desc)
+        print("%-19s\t%12.2f %4s\t%12.2f %4s" % \
+              (timestamp1, irate, unit_desc, orate, unit_desc))
         last_ibytes = ibytes
         last_obytes = obytes
         if (NUMSAMPLES != None) and (linecount == NUMSAMPLES):
             break
         time.sleep(INTERVAL)
-except (SystemExit, KeyboardInterrupt):
-    print "Program terminated."
-finally:
-    astats.display()                            # summary statistics
-    os._exit(0)
+except KeyboardInterrupt:
+    print("Program terminated.")
+
+# Summary statistics
+astats.display()
+os._exit(0)
